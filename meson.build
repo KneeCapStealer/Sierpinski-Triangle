@@ -1,6 +1,6 @@
 project('Triangle', 'c', 'cpp',
   version : '0.1',
-  default_options : ['c_std=c11', 'cpp_std=c++11', 'warning_level=3'])
+  default_options : ['c_std=c11', 'cpp_std=c++20', 'warning_level=3'])
 
 includeDir = include_directories('include')
 glfw = dependency('glfw3')

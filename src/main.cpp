@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cmath>
+#include <chrono>
 
 // libs
 #include <glad/glad.h>
@@ -28,7 +29,9 @@ int main(void) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-    GLFWwindow* window = glfwCreateWindow(1000, 750, "Hello World!", NULL, NULL);
+    glfwWindowHint(GLFW_SAMPLES, 8);
+
+    GLFWwindow* window = glfwCreateWindow(1920, 1080, "Hello World!", glfwGetPrimaryMonitor(), NULL);
 
     if (!window)
     {
@@ -53,22 +56,20 @@ int main(void) {
       return -1;
     }
 
-    float positions[6] = {
-         0.0f,  0.5f,
-        -0.5f, -0.5f,
-         0.5f, -0.5f
-    };
-    uint32_t indices[3] = {0, 1, 2};
-
     std::cout << glGetString(GL_VERSION) << std::endl;
 
-    constexpr uint32_t depth = 1;
     // TODO: Fix wrong amount of vertices.
-    auto output = GenerateSierpinskyTriangle(positions, indices, 2, depth).value();
+    // positions.reserve(positions.size() + output.first.size());
+    // positions.insert(positions.end(), output.first.begin(), output.first.end());
 
-    std::cout << "Vertex count: " << output.first.size()
-              << "\n Index count: " << output.second.size()
-              << std::endl;
+    // std::vector<uint32_t> indices = output.second;
+
+    // std::vector<uint32_t> indices({0, 1, 2});
+
+    // for (int i = 0; i < output.size(); i++)
+    // {
+    //     std::cout << "x: " << output[i].x << ", y: " << output[i + 1].y << '\n';
+    // }
 
     // Vertex Buffer Object
     uint32_t VBO;
@@ -76,19 +77,18 @@ int main(void) {
     // glNamedBufferStorage(VBO, sizeof(float) * 6, positions, GL_DYNAMIC_STORAGE_BIT);
     glNamedBufferStorage(
         VBO,
-        sizeof(float) * output.first.size(),
-        output.first.data(),
+        NULL,
+        NULL,
         GL_DYNAMIC_STORAGE_BIT
     );
-
-    uint32_t EBO;
-    glCreateBuffers(1, &EBO);
-    glNamedBufferStorage(
-        EBO,
-        sizeof(uint32_t) * output.second.size(),
-        output.second.data(),
-        GL_DYNAMIC_STORAGE_BIT
-    );
+    // uint32_t EBO;
+    // glCreateBuffers(1, &EBO);
+    // glNamedBufferStorage(
+    //     EBO,
+    //     sizeof(uint32_t) * indices.size(),
+    //     indices.data(),
+    //     GL_DYNAMIC_STORAGE_BIT
+    // );
 
 
     // Vertex Array Object
@@ -102,7 +102,7 @@ int main(void) {
         2 * sizeof(float)
     );
 
-    glVertexArrayElementBuffer(VAO, EBO);
+    // glVertexArrayElementBuffer(VAO, EBO);
 
     glEnableVertexArrayAttrib(VAO, 0);
     glVertexArrayAttribFormat(VAO, 0, 2, GL_FLOAT, false, 0);
@@ -126,31 +126,81 @@ int main(void) {
         "\n"
         "void main()\n"
         "{\n"
-        "    color = vec4(1.0, 0.0, 0.1, 1.0);\n"
+        "    color = vec4(1.0, 0.3, 0.1, 1.0);\n"
         "}\n";
 
     uint32_t shader = CreateShader(vertexShader, fragmentShader);
     glUseProgram(shader);
 
     glBindVertexArray(VAO);
-    glClearColor(0.1f, 0.1f, 0.17f, 1.0f);
+    glClearColor(0.07f, 0.04f, 0.12f, 1.0f);
+    glEnable(GL_MULTISAMPLE);
 
+
+    auto start = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window))
     {
+        static long long time = 0;
+        auto end = std::chrono::high_resolution_clock::now();
+        time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        start = std::chrono::high_resolution_clock::now();
+
+        if (time >= 1000000)
+            time = 0;
+
+
+        static std::array<Vertex, 3> positions{{
+            { 0.0f, 1.f},
+            {-1.f, -1.f},
+            { 1.f, -1.f}
+        }};
+        
+        static std::array<Vertex, 3> finalPositions{{
+            {positions[0]},
+            {positions[1] + (positions[1] - positions[0])},
+            {positions[2] + (positions[2] - positions[0])}
+        }};
+
+        float t = time / 1000000.f;
+        std::array<Vertex, 3> lerpPos{{
+            {positions[0].Lerp(finalPositions[0], t)},
+            {positions[1].Lerp(finalPositions[1], t)},
+            {positions[2].Lerp(finalPositions[2], t)}
+        }};
+
+        // std::cout << lerpPos[1].x << std::endl;
+
+        constexpr uint8_t depth = 10;
+        constexpr uint32_t size = CustomPow(3, depth);
+        
+        // std::vector<Vertex> output = SierpinskiTriangle(lerpPos, depth);
+        std::array<Vertex, size> output = SierpinskiTriangleIndices<size>(lerpPos, depth);
+
+        glNamedBufferData(
+            VBO,
+            output.size() * sizeof(Vertex),
+            output.data(),
+            GL_STATIC_DRAW
+        );
+
+        
+
         processInput(window);
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // glDrawArrays(GL_TRIANGLES, 0, 3);
-        glDrawElements(
-            GL_TRIANGLES,
-            output.second.size(),
-            GL_UNSIGNED_INT, NULL
-        );
+        glDrawArrays(GL_TRIANGLES, 0, output.size());
+        // glDrawElements(
+        //     GL_TRIANGLES,
+        //     indices.size(),
+        //     GL_UNSIGNED_INT, NULL
+        // );
 
         glfwSwapBuffers(window);
 
         glfwPollEvents();
+
+
     }
 
 
