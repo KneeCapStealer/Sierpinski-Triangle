@@ -1,81 +1,49 @@
 #include "triangle.hpp"
+#include <array>
 #include <cstdint>
-#include <optional>
-#include <utility>
+#include <cstdlib>
 #include <iostream>
 
-std::optional<std::pair<std::vector<float>, std::vector<uint32_t>>> GenerateSierpinskyTriangle(
-    const float positions[6],
-    const uint32_t indices[3],
-    uint32_t curMaxIndex,
-    uint8_t depth)
+
+bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
 {
-    if (depth == 0) {
-        std::optional<std::pair<std::vector<float>, std::vector<uint32_t>>> out;
-        out.reset();
-        return out;
-    }
+    // If all the verticies are outside the screen 
+    return !triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
+           !triangle[1].IsInside(-1.f, 1.f, -1.f, 1.f) &&
+           !triangle[2].IsInside(-1.f, 1.f, -1.f, 1.f);
 
-    Vertex A(positions[0], positions[1]);
-    const uint32_t AIndex = indices[0];
+}
 
-    Vertex B(positions[2], positions[3]);
-    const uint32_t BIndex = indices[1];
+std::array<std::array<Vertex, 3>, 3> SubdivideTriangle(const std::array<Vertex, 3>& triangle)
+{
+    std::array<Vertex, 3> upsideTriangle{{
+        (triangle[0] + triangle[2]) / 2.f,
+        (triangle[0] + triangle[1]) / 2.f,
+        (triangle[1] + triangle[2]) / 2.f
+    }};
 
-    Vertex C(positions[4], positions[5]);
-    const uint32_t CIndex = indices[2];
+    std::array<std::array<Vertex, 3>, 3> subTriangles{{
+        // Triangle 1
+        {{
+            triangle[0],
+            upsideTriangle[1],
+            upsideTriangle[0]
+        }},
+        // Triangle 2
+        {{
+            upsideTriangle[1],
+            triangle[1],
+            upsideTriangle[2]
+        }},
+        // Triangle 3
+        {{
+            upsideTriangle[0],
+            upsideTriangle[2],
+            triangle[2]
+        }}
 
-    Vertex AB = A + ((B - A) / 2.f);
-    const uint32_t ABIndex = ++curMaxIndex;
-    
-    Vertex AC = A + ((C - A) / 2.f);
-    const uint32_t ACIndex = ++curMaxIndex;
-    
-    Vertex BC = B + ((C - B) / 2.f);
-    const uint32_t BCIndex = ++curMaxIndex;
-
-    std::vector<Vertex> triangles[3] = {
-        {A, AB, AC},
-        {AB, B, BC},
-        {AC, BC, C}
-    };
-
-    uint32_t triangleIndices[3][3] = {
-        {AIndex, ABIndex, ACIndex},
-        {ABIndex, BIndex, BCIndex},
-        {ACIndex, BCIndex, CIndex}
-    };
-
-    auto outPair = std::make_pair(std::vector<float>(), std::vector<uint32_t>());
-    outPair.first.insert(outPair.first.end(), {AB.x, AB.y, AC.x, AC.y, BC.x, BC.y});
-
-    for (uint8_t i = 0; i < 3; i++)
-    {
-        outPair.second.insert(outPair.second.end(), &triangleIndices[i][0], &triangleIndices[i][2]);
-
-        auto pair = GenerateSierpinskyTriangle(
-            reinterpret_cast<float*>(triangles[i].data()),
-            triangleIndices[i],
-            curMaxIndex,
-            depth - 1
-        );
-
-        if (!pair.has_value())
-        {
-            std::cout << "it stopped" << std::endl;
-            continue;
-        }
-
-        std::cout << "guh" << std::endl;
-
-        outPair.first.resize(outPair.first.size() + pair->first.size());
-        outPair.first.insert(outPair.first.end(), pair->first.begin(), pair->first.end());
-
-        outPair.second.resize(outPair.second.size() + pair->second.size());
-        outPair.second.insert(outPair.second.end(), pair->second.begin(), pair->second.end());
-    }
-
-    return std::make_optional(outPair);
+    }};
+    return subTriangles;
 }
 
 std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8_t depth)
@@ -84,45 +52,34 @@ std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8
         return std::vector<Vertex>{input.begin(), input.end()};
 
     // Generate the upsidedown inverted triangle
-    std::array<Vertex, 3> upsideTriangle{{
-        (input[0] + input[2]) / 2.f,
-        (input[0] + input[1]) / 2.f,
-        (input[1] + input[2]) / 2.f
-    }};
-
-    std::array<std::array<Vertex, 3>, 3> subTriangles{{
-        // Triangle 1
-        {{
-            input[0],
-            upsideTriangle[1],
-            upsideTriangle[0]
-        }},
-        // Triangle 2
-        {{
-            upsideTriangle[1],
-            input[1],
-            upsideTriangle[2]
-        }},
-        // Triangle 3
-        {{
-            upsideTriangle[0],
-            upsideTriangle[2],
-            input[2]
-        }}
-    }};
+    std::array<std::array<Vertex, 3>, 3> subTriangles = SubdivideTriangle(input);
 
     std::vector<Vertex> verticies{};
-    for (const std::array<Vertex, 3>& triangle : subTriangles)
+    for (const std::array<Vertex, 3>& subTriangle : subTriangles)
     {
-        // If all verticies are outside screen, don't subdivide
-        if (!triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
-            !triangle[1].IsInside(-1.f, 1.f, -1.f, 1.f) &&
-            !triangle[2].IsInside(-1.f, 1.f, -1.f, 1.f) &&
-            !((triangle[0].y - triangle[1].y) > 1.f))
-            continue;
+        std::vector<Vertex> newSubTriangles;
+        if (ShouldSkipTriangle(subTriangle))
+        {
+            // If the triangle is larger than the screen it should be checked further
+            if (subTriangle[0].y - subTriangle[1].y > 2)
+            {
+                // Subdivide the large triangle.
+                // If the subdivided triangles now are inside the screen they will be rendered
+                // If they are outside they will simply be skipped and nothing happens
+                for (std::array<Vertex, 3>& subSubTriangle : SubdivideTriangle(subTriangle))
+                {
+                    std::vector<Vertex> subDivision = SierpinskiTriangle(subSubTriangle, depth - 2);
+                    newSubTriangles.insert(newSubTriangles.end(), subDivision.begin(), subDivision.end());
+                }
+            }
+            else
+                continue; 
+        }
+        else
+        {
+            newSubTriangles = SierpinskiTriangle(subTriangle, depth - 1);
+        }
 
-
-        auto newSubTriangles = SierpinskiTriangle(triangle, depth - 1);
         verticies.insert(verticies.end(), newSubTriangles.begin(), newSubTriangles.end());
     }
 

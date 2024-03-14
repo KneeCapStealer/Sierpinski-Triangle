@@ -157,10 +157,10 @@ int main(void) {
 
         start = std::chrono::high_resolution_clock::now();
 
-        if (time >= 1000000)
+        if (time >= 4000000)
         {
             reset = true;
-            time = 1000000;
+            time = 4000000;
         }
 
         static std::array<Vertex, 3> positions{{
@@ -175,7 +175,7 @@ int main(void) {
         const float t = time / 1000000.f;
         const float scale = std::pow(2, t);
 
-        constexpr Vertex zoomPoint{0.f, 1.f};
+        constexpr Vertex zoomPoint{0.f, 0.8f};
 
         std::array<Vertex, 3> finalPositions{{
             {positions[0] * scale + zoomPoint * (1 -scale)},
