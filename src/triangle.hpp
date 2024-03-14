@@ -11,23 +11,38 @@ struct Vertex
     float x;
     float y;
 
-    Vertex(float x, float y): x{x}, y{y} {}
+    constexpr Vertex(float x, float y): x{x}, y{y} {}
 
-    Vertex operator+ (const Vertex& other) const { return Vertex(x + other.x, y + other.y); }
-    Vertex operator- (const Vertex& other) const { return Vertex(x - other.x, y - other.y); }
-    Vertex operator/ (const float val) const { return Vertex(x / val, y / val); }
+    constexpr Vertex operator+ (const Vertex& other) const { return Vertex(x + other.x, y + other.y); }
+    constexpr Vertex operator- (const Vertex& other) const { return Vertex(x - other.x, y - other.y); }
+    constexpr Vertex operator/ (const float val) const { return Vertex(x / val, y / val); }
+    template<typename T>
+    constexpr Vertex operator* (const T val) const { return Vertex(x * val, y * val); }
+
+    constexpr float Length() const
+    {
+        return std::sqrt(x*x + y*y);
+    }
+
+    constexpr Vertex Normalize() const
+    {
+        return Vertex(x, y) / Length();
+    }
     
     Vertex Lerp(const Vertex& other, float t) const
     {
-        // auto lerp = [](float start, float dest, float t)
-        // {
-        //     return t * dest + (1-t)*start;
-        // };
-
         float lerpX = std::lerp(x, other.x, t);
         float lerpY = std::lerp(y, other.y, t);
 
         return Vertex(lerpX, lerpY);
+    }
+
+    bool IsInside(const float xMin, const float xMax, const float yMin, const float yMax) const
+    {
+        return x >= xMin &&
+               x <= xMax &&
+               y >= yMin &&
+               y <= yMax;
     }
 };
 
@@ -37,8 +52,8 @@ std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8
 
 template<uint32_t size>
 std::pair<std::array<Vertex, size>, std::array<uint32_t, size>> SierpinskiTriangleIndices(
-    const std::array<Vertex,
-    3>& input, uint8_t depth)
+    const std::array<Vertex, 3>& input,
+    uint8_t depth)
 {
     if (depth <= 1)
         return std::vector<Vertex>{input.begin(), input.end()};
@@ -72,7 +87,7 @@ std::pair<std::array<Vertex, size>, std::array<uint32_t, size>> SierpinskiTriang
     }};
 
     std::vector<Vertex> verticies{};
-    for (const std::array<Vertex, 3>& triangle: subTriangles)
+    for (const std::array<Vertex, 3>& triangle : subTriangles)
     {
         auto newSubTriangles = SierpinskiTriangle(triangle, depth - 1);
         verticies.insert(std::end(verticies), std::begin(newSubTriangles), std::end(newSubTriangles));

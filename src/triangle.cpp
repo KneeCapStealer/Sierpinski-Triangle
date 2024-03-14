@@ -80,7 +80,6 @@ std::optional<std::pair<std::vector<float>, std::vector<uint32_t>>> GenerateSier
 
 std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8_t depth)
 {
-
     if (depth <= 1)
         return std::vector<Vertex>{input.begin(), input.end()};
 
@@ -89,7 +88,7 @@ std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8
         (input[0] + input[2]) / 2.f,
         (input[0] + input[1]) / 2.f,
         (input[1] + input[2]) / 2.f
-        }};
+    }};
 
     std::array<std::array<Vertex, 3>, 3> subTriangles{{
         // Triangle 1
@@ -113,10 +112,18 @@ std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8
     }};
 
     std::vector<Vertex> verticies{};
-    for (const std::array<Vertex, 3>& triangle: subTriangles)
+    for (const std::array<Vertex, 3>& triangle : subTriangles)
     {
+        // If all verticies are outside screen, don't subdivide
+        if (!triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
+            !triangle[1].IsInside(-1.f, 1.f, -1.f, 1.f) &&
+            !triangle[2].IsInside(-1.f, 1.f, -1.f, 1.f) &&
+            !((triangle[0].y - triangle[1].y) > 1.f))
+            continue;
+
+
         auto newSubTriangles = SierpinskiTriangle(triangle, depth - 1);
-        verticies.insert(std::end(verticies), std::begin(newSubTriangles), std::end(newSubTriangles));
+        verticies.insert(verticies.end(), newSubTriangles.begin(), newSubTriangles.end());
     }
 
     return verticies;
