@@ -141,15 +141,7 @@ int main(void) {
     auto start = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window))
     {
-        static bool reset = false;
         static int64_t time = 0;
-
-        if (reset)
-        {
-            time = 0;
-            reset = false;
-        }
-
         auto end = std::chrono::high_resolution_clock::now();
 
         const int64_t diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
@@ -157,45 +149,31 @@ int main(void) {
 
         start = std::chrono::high_resolution_clock::now();
 
-        if (time >= 1000000)
-        {
-            reset = true;
-            time = 1000000;
-        }
-
         static std::array<Vertex, 3> positions{{
             { 0.f,  1.f},
             {-1.f, -1.f},
             { 1.f, -1.f}
         }};
         
-        // const float scaleDiff = diff / 1000000.f;
-        // scale += scaleDiff;
-        
         const float t = time / 1000000.f;
         const float scale = std::pow(2, t);
 
         constexpr Vertex zoomPoint{0.f, 1.f};
 
+        
         std::array<Vertex, 3> finalPositions{{
             {positions[0] * scale + zoomPoint * (1 -scale)},
             {positions[1] * scale + zoomPoint * (1 -scale)},
             {positions[2] * scale + zoomPoint * (1 -scale)},
         }};
 
-        // std::array<Vertex, 3> lerpPos{{
-        //     {positions[0].Lerp(finalPositions[0], t)},
-        //     {positions[1].Lerp(finalPositions[1], t)},
-        //     {positions[2].Lerp(finalPositions[2], t)}
-        // }};
-        //
-        // std::cout << lerpPos[1].x << std::endl;
-
-        constexpr uint8_t depth = 10;
-        constexpr uint32_t size = CustomPow(3, depth);
+        for (auto& subTriangle : SubdivideTriangle(finalPositions))
+        {
+            const bool bottumUnderScreen = subTriangle[1].y < -1.f &&
+                                           subTriangle[2].y < -1.f;
+        }
         
-        std::vector<Vertex> output = SierpinskiTriangle(finalPositions, depth);
-        // std::array<Vertex, size> output = SierpinskiTriangleIndices<size>(lerpPos, depth);
+        std::vector<Vertex> output = SierpinskiTriangle(finalPositions, 0.01f);
 
         std::cout << "FPS:\t" << 1.f / (diff / 1000000.f) << '\n';
 

@@ -46,55 +46,9 @@ struct Vertex
     }
 };
 
-std::optional<std::pair<std::vector<float>, std::vector<uint32_t>>> GenerateSierpinskyTriangle(const float positions[6], const uint32_t indices[3], uint32_t curMaxIndex, uint8_t depth);
+// std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8_t depth);
+std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, float minHeight);
 
-std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8_t depth);
-
-template<uint32_t size>
-std::pair<std::array<Vertex, size>, std::array<uint32_t, size>> SierpinskiTriangleIndices(
-    const std::array<Vertex, 3>& input,
-    uint8_t depth)
-{
-    if (depth <= 1)
-        return std::vector<Vertex>{input.begin(), input.end()};
-
-    // Generate the upsidedown inverted triangle
-    std::array<Vertex, 3> upsideTriangle{{
-        (input[0] + input[2]) / 2.f,
-        (input[0] + input[1]) / 2.f,
-        (input[1] + input[2]) / 2.f
-    }};
-
-    std::array<std::array<Vertex, 3>, 3> subTriangles{{
-        // Triangle 1
-        {{
-            input[0],
-            upsideTriangle[1],
-            upsideTriangle[0]
-        }},
-        // Triangle 2
-        {{
-            upsideTriangle[1],
-            input[1],
-            upsideTriangle[2]
-        }},
-        // Triangle 3
-        {{
-            upsideTriangle[0],
-            upsideTriangle[2],
-            input[2]
-        }}
-    }};
-
-    std::vector<Vertex> verticies{};
-    for (const std::array<Vertex, 3>& triangle : subTriangles)
-    {
-        auto newSubTriangles = SierpinskiTriangle(triangle, depth - 1);
-        verticies.insert(std::end(verticies), std::begin(newSubTriangles), std::end(newSubTriangles));
-    }
-
-    return verticies;
-}
 
 constexpr uint32_t CustomPow(uint32_t base, uint32_t exp)
 {
@@ -112,4 +66,45 @@ constexpr uint32_t CustomPow(uint32_t base, uint32_t exp)
     }
 
     return result;
+}
+
+bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
+{
+    // If all the verticies are outside the screen 
+    return !triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
+           !triangle[1].IsInside(-1.f, 1.f, -1.f, 1.f) &&
+           !triangle[2].IsInside(-1.f, 1.f, -1.f, 1.f);
+
+}
+
+std::array<std::array<Vertex, 3>, 3> SubdivideTriangle(const std::array<Vertex, 3>& triangle)
+{
+    std::array<Vertex, 3> upsideTriangle{{
+        (triangle[0] + triangle[2]) / 2.f,
+        (triangle[0] + triangle[1]) / 2.f,
+        (triangle[1] + triangle[2]) / 2.f
+    }};
+
+    std::array<std::array<Vertex, 3>, 3> subTriangles{{
+        // Triangle 1
+        {{
+            triangle[0],
+            upsideTriangle[1],
+            upsideTriangle[0]
+        }},
+        // Triangle 2
+        {{
+            upsideTriangle[1],
+            triangle[1],
+            upsideTriangle[2]
+        }},
+        // Triangle 3
+        {{
+            upsideTriangle[0],
+            upsideTriangle[2],
+            triangle[2]
+        }}
+
+    }};
+    return subTriangles;
 }
