@@ -5,7 +5,7 @@
 #include <iostream>
 
 
-bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
+static bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
 {
     // If all the verticies are outside the screen 
     return !triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
@@ -14,7 +14,7 @@ bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
 
 }
 
-std::array<std::array<Vertex, 3>, 3> SubdivideTriangle(const std::array<Vertex, 3>& triangle)
+static std::array<std::array<Vertex, 3>, 3> SubdivideTriangle(const std::array<Vertex, 3>& triangle)
 {
     std::array<Vertex, 3> upsideTriangle{{
         (triangle[0] + triangle[2]) / 2.f,
@@ -57,30 +57,25 @@ std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8
     std::vector<Vertex> verticies{};
     for (const std::array<Vertex, 3>& subTriangle : subTriangles)
     {
-        std::vector<Vertex> newSubTriangles;
-        if (ShouldSkipTriangle(subTriangle))
+        if (!ShouldSkipTriangle(subTriangle))
         {
-            // If the triangle is larger than the screen it should be checked further
-            if (subTriangle[0].y - subTriangle[1].y > 2)
-            {
-                // Subdivide the large triangle.
-                // If the subdivided triangles now are inside the screen they will be rendered
-                // If they are outside they will simply be skipped and nothing happens
-                for (std::array<Vertex, 3>& subSubTriangle : SubdivideTriangle(subTriangle))
-                {
-                    std::vector<Vertex> subDivision = SierpinskiTriangle(subSubTriangle, depth - 2);
-                    newSubTriangles.insert(newSubTriangles.end(), subDivision.begin(), subDivision.end());
-                }
-            }
-            else
-                continue; 
-        }
-        else
-        {
-            newSubTriangles = SierpinskiTriangle(subTriangle, depth - 1);
+            std::vector<Vertex> newSubTriangles = SierpinskiTriangle(subTriangle, depth - 1);
+            verticies.insert(verticies.end(), newSubTriangles.begin(), newSubTriangles.end());
+            continue;
         }
 
-        verticies.insert(verticies.end(), newSubTriangles.begin(), newSubTriangles.end());
+        // If the triangle is larger than the screen it should be checked further
+        if (!(subTriangle[0].y - subTriangle[1].y > 2))
+            continue; 
+
+        // Subdivide the large triangle.
+        // If the subdivided triangles now are inside the screen they will be rendered
+        // If they are outside they will simply be skipped and nothing happens
+        for (std::array<Vertex, 3>& subSubTriangle : SubdivideTriangle(subTriangle))
+        {
+            std::vector<Vertex> newSubTriangles =  SierpinskiTriangle(subSubTriangle, depth - 2);
+            verticies.insert(verticies.end(), newSubTriangles.begin(), newSubTriangles.end());
+        }
     }
 
     return verticies;
