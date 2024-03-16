@@ -1,8 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include <utility>
-#include <optional>
 #include <array>
 #include <cmath>
 
@@ -13,8 +11,8 @@ struct Vertex
 
     constexpr Vertex(float x, float y): x{x}, y{y} {}
 
-    constexpr Vertex operator+ (const Vertex& other) const { return Vertex(x + other.x, y + other.y); }
-    constexpr Vertex operator- (const Vertex& other) const { return Vertex(x - other.x, y - other.y); }
+    constexpr Vertex operator+ (const Vertex other) const { return Vertex(x + other.x, y + other.y); }
+    constexpr Vertex operator- (const Vertex other) const { return Vertex(x - other.x, y - other.y); }
     constexpr Vertex operator/ (const float val) const { return Vertex(x / val, y / val); }
     template<typename T>
     constexpr Vertex operator* (const T val) const { return Vertex(x * val, y * val); }
@@ -28,29 +26,47 @@ struct Vertex
     {
         return Vertex(x, y) / Length();
     }
-    
-    Vertex Lerp(const Vertex& other, float t) const
-    {
-        float lerpX = std::lerp(x, other.x, t);
-        float lerpY = std::lerp(y, other.y, t);
-
-        return Vertex(lerpX, lerpY);
-    }
-
-    bool IsInside(const float xMin, const float xMax, const float yMin, const float yMax) const
-    {
-        return x >= xMin &&
-               x <= xMax &&
-               y >= yMin &&
-               y <= yMax;
-    }
 };
 
-// std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, uint8_t depth);
-std::vector<Vertex> SierpinskiTriangle(const std::array<Vertex, 3>& input, float minHeight);
+typedef std::array<Vertex, 3> Triangle;
+
+std::array<Triangle, 3> SubdivideTriangle(const Triangle& triangle);
+
+std::vector<Vertex> SierpinskiTriangle(const Triangle& input, float minHeight);
 
 
-constexpr uint32_t CustomPow(uint32_t base, uint32_t exp)
+inline constexpr bool TriangleIsVisible(const Triangle& triangle)
+{
+    constexpr const auto IsBiggerY = [] (const Vertex a, const Vertex b) { return a.y > b.y; };
+    constexpr const auto IsBiggerX = [] (const Vertex a, const Vertex b) { return a.x > b.x; };
+
+    const float top = std::max_element(triangle.begin(), triangle.end(), IsBiggerY)->y;
+    const float bottom = std::min_element(triangle.begin(), triangle.end(), IsBiggerY)->y;
+    const float right = std::max_element(triangle.begin(), triangle.end(), IsBiggerX)->x;
+    const float left = std::min_element(triangle.begin(), triangle.end(), IsBiggerX)->x;
+
+    return top    > -1.f &&
+           bottom <  1.f &&
+           right  > -1.f &&
+           left   <  1.f;
+}
+
+
+inline constexpr Triangle ScaleTriangle(
+    const Triangle& triangle,
+    const float scale,
+    const Vertex zoomPoint)
+{
+    const float scaleDiff = (1 - scale);
+    return {{
+        { triangle[0] * scale + zoomPoint * scaleDiff },
+        { triangle[1] * scale + zoomPoint * scaleDiff },
+        { triangle[2] * scale + zoomPoint * scaleDiff },
+    }};
+
+}
+
+inline constexpr uint32_t CustomPow(uint32_t base, uint32_t exp)
 {
     uint32_t result = 1;
     while (true)
@@ -68,43 +84,3 @@ constexpr uint32_t CustomPow(uint32_t base, uint32_t exp)
     return result;
 }
 
-bool ShouldSkipTriangle(const std::array<Vertex, 3>& triangle)
-{
-    // If all the verticies are outside the screen 
-    return !triangle[0].IsInside(-1.f, 1.f, -1.f, 1.f) && 
-           !triangle[1].IsInside(-1.f, 1.f, -1.f, 1.f) &&
-           !triangle[2].IsInside(-1.f, 1.f, -1.f, 1.f);
-
-}
-
-std::array<std::array<Vertex, 3>, 3> SubdivideTriangle(const std::array<Vertex, 3>& triangle)
-{
-    std::array<Vertex, 3> upsideTriangle{{
-        (triangle[0] + triangle[2]) / 2.f,
-        (triangle[0] + triangle[1]) / 2.f,
-        (triangle[1] + triangle[2]) / 2.f
-    }};
-
-    std::array<std::array<Vertex, 3>, 3> subTriangles{{
-        // Triangle 1
-        {{
-            triangle[0],
-            upsideTriangle[1],
-            upsideTriangle[0]
-        }},
-        // Triangle 2
-        {{
-            upsideTriangle[1],
-            triangle[1],
-            upsideTriangle[2]
-        }},
-        // Triangle 3
-        {{
-            upsideTriangle[0],
-            upsideTriangle[2],
-            triangle[2]
-        }}
-
-    }};
-    return subTriangles;
-}

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <chrono>
+#include <ranges>
 
 // libs
 #include <glad/glad.h>
@@ -15,11 +16,9 @@
 void processInput(GLFWwindow *window);
 
 int main(void) {
-    std::cout << "Hello there" << std::endl;
-
     if (!glfwInit())
     {
-        std::cerr << "Failed to init GLFW" << std::endl;
+        std::cerr << "Failed to init GLFW\n";
         return EXIT_FAILURE;
     }
 
@@ -142,44 +141,94 @@ int main(void) {
     while (!glfwWindowShouldClose(window))
     {
         static int64_t time = 0;
+        static float scale = 0;
         auto end = std::chrono::high_resolution_clock::now();
 
-        const int64_t diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
-        time += diff;
+        const int64_t deltatime = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
+        time += deltatime;
 
         start = std::chrono::high_resolution_clock::now();
 
-        static std::array<Vertex, 3> positions{{
+        // Default triangle values
+        static std::vector<Triangle> largeTriangles{{{
             { 0.f,  1.f},
             {-1.f, -1.f},
             { 1.f, -1.f}
-        }};
-        
-        const float t = time / 1000000.f;
-        const float scale = std::pow(2, t);
+        }}};
+        std::cout << largeTriangles.size() << std::endl;
+        exit(0);
 
+        // t is time but in seconds
+        const float t = (float)time / 1000000.f;
+        const float newScale = (float)std::pow(2, t);
+        const float scaleDiff = scale - newScale;
+        scale = newScale;
+
+        // Point to zoom at
         constexpr Vertex zoomPoint{0.f, 1.f};
-
         
-        std::array<Vertex, 3> finalPositions{{
-            {positions[0] * scale + zoomPoint * (1 -scale)},
-            {positions[1] * scale + zoomPoint * (1 -scale)},
-            {positions[2] * scale + zoomPoint * (1 -scale)},
-        }};
+        // A c++ range to scale all the elements of the largeTriangles
+        // Removes triangles that might have become invisible
+        auto scaledIterator = largeTriangles
+                                | std::views::transform([=] (const Triangle& tri)
+                                                        { return ScaleTriangle(tri, scale, zoomPoint); })
+                                | std::views::filter([=] (const Triangle& tri)
+                                                     { return !TriangleIsVisible(tri); });
 
-        for (auto& subTriangle : SubdivideTriangle(finalPositions))
+        // Copy the newly scaled values into 
+        largeTriangles.clear();
+        largeTriangles.insert_range(largeTriangles.begin(), scaledIterator);
+
+        // Check if smaller triangles should replace the current triangles
+        for (auto triangle = largeTriangles.begin(); triangle != largeTriangles.end();)
         {
-            const bool bottumUnderScreen = subTriangle[1].y < -1.f &&
-                                           subTriangle[2].y < -1.f;
-        }
-        
-        std::vector<Vertex> output = SierpinskiTriangle(finalPositions, 0.01f);
+            // Check it's subTriangles are all visible
+            bool allTrisVisible = true;
+            std::array<Triangle, 3> subTriangles = SubdivideTriangle(*triangle);
+            for (Triangle& subTriangle : subTriangles)
+            {
+                if (!TriangleIsVisible(subTriangle))
+                {
+                    allTrisVisible = false;
+                    break;
+                }
+            }
 
-        std::cout << "FPS:\t" << 1.f / (diff / 1000000.f) << '\n';
+            // If some of it's subTriangles arent visible add them all to the vector
+            // The invisible ones will be removed later in the loop
+            // Remove the current big triangle and don't increment
+            if (!allTrisVisible)
+            {
+                largeTriangles.erase(triangle);
+                largeTriangles.insert_range(largeTriangles.end(), subTriangles);
+                continue;
+            }
+
+            // If this triangle can't be split into smaller parts and is visible
+            // Increment the iterator and go to the next index
+            triangle++;
+        }
+
+        // std::cout << "Collided!!!!\n"
+        //           << "New points are:\n"
+        //           << "[ x: " << largeTriangles[0].x
+        //           << ", y: " << largeTriangles[0].y << " ],\n"
+        //           << "[ x: " << largeTriangles[1].x
+        //           << ", y: " << largeTriangles[1].y << " ],\n"
+        //           << "[ x: " << largeTriangles[2].x
+        //           << ", y: " << largeTriangles[2].y << " ],\n\n";
+
+        std::vector<Vertex> output;
+        for (Triangle& triangle : largeTriangles)
+            output.insert_range(output.end(), SierpinskiTriangle(triangle, 0.005f));
+
+        std::cout << "FPS:\t" << 1.f / ((float)deltatime / 1000000.f) << '\n'
+                  << "size:\t" << output.size() << '\n';
+                  // << "Scale:\t" << scale << '\n';
 
         glNamedBufferData(
             VBO,
-            output.size() * sizeof(Vertex),
+            (GLsizeiptr)output.size() * (GLsizeiptr)sizeof(Vertex),
             output.data(),
             GL_STATIC_DRAW
         );
@@ -188,11 +237,12 @@ int main(void) {
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glDrawArrays(GL_TRIANGLES, 0, output.size());
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)output.size());
         // glDrawElements(
         //     GL_TRIANGLES,
         //     indices.size(),
-        //     GL_UNSIGNED_INT, NULL
+        //     GL_UNSIGNED_INT,
+        //     NULL
         // );
 
         glfwSwapBuffers(window);
