@@ -155,8 +155,6 @@ int main(void) {
             {-1.f, -1.f},
             { 1.f, -1.f}
         }}};
-        std::cout << largeTriangles.size() << std::endl;
-        exit(0);
 
         // t is time but in seconds
         const float t = (float)time / 1000000.f;
@@ -178,6 +176,8 @@ int main(void) {
         // Copy the newly scaled values into 
         largeTriangles.clear();
         largeTriangles.insert_range(largeTriangles.begin(), scaledIterator);
+        std::cout << largeTriangles.size() << std::endl;
+        exit(0);
 
         // Check if smaller triangles should replace the current triangles
         for (auto triangle = largeTriangles.begin(); triangle != largeTriangles.end();)
